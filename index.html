@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html>
 <head>
@@ -5,6 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <title>My Chat</title>
+
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
     * {
@@ -16,8 +20,6 @@
       font-family: Arial, sans-serif;
       background: #eef1f5;
     }
-
-    /* LOGIN */
 
     #loginScreen {
       height: 100vh;
@@ -68,8 +70,6 @@
       color: red;
       margin-top: 10px;
     }
-
-    /* CHAT */
 
     #chatScreen {
       display: none;
@@ -140,8 +140,6 @@
 
 <body>
 
-  <!-- LOGIN SCREEN -->
-
   <div id="loginScreen">
 
     <div class="loginBox">
@@ -173,40 +171,19 @@
   </div>
 
 
-  <!-- CHAT SCREEN -->
-
   <div id="chatScreen">
 
     <div class="header">
 
       <h2>My Chat</h2>
 
-      <button
-        class="logout"
-        onclick="logout()"
-      >
+      <button class="logout" onclick="logout()">
         Log Out
       </button>
 
     </div>
 
-
-    <div id="messages">
-
-      <div class="message">
-
-        <div class="name">
-          Welcome
-        </div>
-
-        <div>
-          Welcome to the chat!
-        </div>
-
-      </div>
-
-    </div>
-
+    <div id="messages"></div>
 
     <div class="messageBar">
 
@@ -228,12 +205,24 @@
 
   <script>
 
-    /*
-      TEMPORARY LOGIN
+    /* ================================
+       SUPABASE CONNECTION
+       ================================ */
 
-      This is only for testing the appearance.
-      Do NOT use this method for a real private website.
-    */
+    const SUPABASE_URL = "https://zawcmffaxdpzjghoyzuc.supabase.co/rest/v1/";
+
+    const SUPABASE_KEY = "sb_publishable_ZQWcdCuBXcfQxQMHY44BGg_oNDFCzW1";
+
+    const supabaseClient =
+      window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_KEY
+      );
+
+
+    /* ================================
+       TEMPORARY LOGIN
+       ================================ */
 
     const accounts = {
       "winn": "1234",
@@ -243,11 +232,14 @@
       "joseph": "dybas"
     };
 
-
     let currentUser = "";
 
 
-    function login() {
+    /* ================================
+       LOGIN
+       ================================ */
+
+    async function login() {
 
       const username =
         document.getElementById("username").value.trim();
@@ -271,6 +263,8 @@
 
         error.innerText = "";
 
+        await loadMessages();
+
       } else {
 
         error.innerText =
@@ -280,6 +274,10 @@
 
     }
 
+
+    /* ================================
+       LOG OUT
+       ================================ */
 
     function logout() {
 
@@ -298,7 +296,80 @@
     }
 
 
-    function sendMessage() {
+    /* ================================
+       LOAD MESSAGES
+       ================================ */
+
+    async function loadMessages() {
+
+      const { data, error } =
+        await supabaseClient
+          .from("messages")
+          .select("*")
+          .order("created_at", { ascending: true });
+
+      if (error) {
+        console.error(error);
+        return;
+      }
+
+      const messages =
+        document.getElementById("messages");
+
+      messages.innerHTML = "";
+
+      data.forEach(message => {
+        displayMessage(
+          message.username,
+          message.message
+        );
+      });
+
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+
+    /* ================================
+       DISPLAY MESSAGE
+       ================================ */
+
+    function displayMessage(username, text) {
+
+      const messages =
+        document.getElementById("messages");
+
+      const message =
+        document.createElement("div");
+
+      message.className = "message";
+
+      const name =
+        document.createElement("div");
+
+      name.className = "name";
+
+      name.textContent = username;
+
+      const content =
+        document.createElement("div");
+
+      content.textContent = text;
+
+      message.appendChild(name);
+      message.appendChild(content);
+
+      messages.appendChild(message);
+
+      messages.scrollTop =
+        messages.scrollHeight;
+    }
+
+
+    /* ================================
+       SEND MESSAGE
+       ================================ */
+
+    async function sendMessage() {
 
       const input =
         document.getElementById("messageInput");
@@ -309,40 +380,57 @@
       if (text === "") return;
 
 
-      const message =
-        document.createElement("div");
-
-      message.className = "message";
-
-
-      message.innerHTML = `
-
-        <div class="name">
-          ${currentUser}
-        </div>
-
-        <div>
-          ${text}
-        </div>
-
-      `;
+      const { error } =
+        await supabaseClient
+          .from("messages")
+          .insert({
+            username: currentUser,
+            message: text
+          });
 
 
-      document
-        .getElementById("messages")
-        .appendChild(message);
+      if (error) {
 
+        console.error(error);
+
+        alert("Could not send message.");
+
+        return;
+      }
 
       input.value = "";
-
-      document
-        .getElementById("messages")
-        .scrollTop =
-        document.getElementById("messages").scrollHeight;
-
     }
+
+
+    /* ================================
+       REALTIME CHAT
+       ================================ */
+
+    supabaseClient
+      .channel("messages-channel")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages"
+        },
+        payload => {
+
+          const message =
+            payload.new;
+
+          displayMessage(
+            message.username,
+            message.message
+          );
+
+        }
+      )
+      .subscribe();
 
   </script>
 
 </body>
 </html>
+```
