@@ -391,12 +391,12 @@
 
       if (error) {
 
-        console.error(error);
+  console.error(error);
 
-        alert("Could not send message.");
+  alert("Supabase error: " + error.message);
 
-        return;
-      }
+  return;
+}
 
       input.value = "";
     }
